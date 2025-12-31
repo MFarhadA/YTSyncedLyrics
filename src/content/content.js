@@ -307,22 +307,38 @@ class LyricsRenderer {
          this.originalTarget = description;
     }
 
-    // 3. Create Toggle Button
-    this.toggleBtn = document.createElement('button');
-    this.toggleBtn.className = 'sym-switch-btn';
-    this.toggleBtn.textContent = 'Switch to Synced Lyrics';
-    this.toggleBtn.style.marginTop = '20px';
-    this.toggleBtn.style.display = 'block';
-    this.toggleBtn.style.margin = '20px auto';
-    this.toggleBtn.onclick = () => this.toggleView();
+    // 3. Create Source Toggle Group
+    this.sourceGroup = document.createElement('div');
+    this.sourceGroup.className = 'sym-source-group';
+    
+    this.ytBtn = document.createElement('button');
+    this.ytBtn.className = 'sym-source-btn';
+    this.ytBtn.textContent = 'YTMusic';
+    this.ytBtn.onclick = () => {
+        this.isSyncedView = false;
+        this.updateViewVisibility();
+    };
+
+    this.lrcBtn = document.createElement('button');
+    this.lrcBtn.className = 'sym-source-btn';
+    this.lrcBtn.textContent = 'LRCLib';
+    this.lrcBtn.onclick = () => {
+        this.isSyncedView = true;
+        this.updateViewVisibility();
+    };
+
+    this.sourceGroup.appendChild(this.ytBtn);
+    this.sourceGroup.appendChild(this.lrcBtn);
     
     // 4. Append New Elements
+    // Prepend source group to ensure it stays at the top above all lyrics (Native or Synced)
+    appendTarget.prepend(this.sourceGroup);
+    
     if (appendTarget === shelf) {
         appendTarget.appendChild(this.container);
-        appendTarget.appendChild(this.toggleBtn);
     } else {
-        appendTarget.insertBefore(this.container, insertReference);
-        appendTarget.insertBefore(this.toggleBtn, this.container.nextSibling);
+        // Insert synced container after the source buttons
+        appendTarget.insertBefore(this.container, this.sourceGroup.nextSibling);
     }
     
     // 5. Hide Footer
@@ -342,7 +358,7 @@ class LyricsRenderer {
   }
 
   updateViewVisibility() {
-    if (!this.container) return;
+    if (!this.container || !this.sourceGroup) return;
 
     if (this.isSyncedView) {
         this.container.style.display = 'flex';
@@ -352,7 +368,9 @@ class LyricsRenderer {
         } else if (this.originalTarget) {
             this.originalTarget.style.display = 'none';
         }
-        this.toggleBtn.textContent = 'Show Native Lyrics';
+        
+        this.lrcBtn.classList.add('active');
+        this.ytBtn.classList.remove('active');
     } else {
         this.container.style.display = 'none';
          if (this.originalContent) {
@@ -360,7 +378,9 @@ class LyricsRenderer {
         } else if (this.originalTarget) {
             this.originalTarget.style.display = 'block'; // or ''
         }
-        this.toggleBtn.textContent = 'Switch to Synced Lyrics';
+        
+        this.ytBtn.classList.add('active');
+        this.lrcBtn.classList.remove('active');
     }
   }
 
@@ -385,7 +405,18 @@ class LyricsRenderer {
     this.container.innerHTML = '';
     
     if (this.statusMessage) {
-        this.container.innerHTML = `<div class="sym-lyrics-line">${this.statusMessage}</div>`;
+        if (this.statusMessage === 'Fetching lyrics...' || this.statusMessage === 'Waiting for duration...') {
+            this.container.innerHTML = `
+                <div class="sym-loading-container">
+                    <div class="sym-loading-line"></div>
+                    <div class="sym-loading-line" style="width: 180px"></div>
+                    <div class="sym-loading-line" style="width: 220px"></div>
+                    <div class="sym-loading-text">${this.statusMessage}</div>
+                </div>
+            `;
+        } else {
+            this.container.innerHTML = `<div class="sym-lyrics-line">${this.statusMessage}</div>`;
+        }
         return;
     }
 
@@ -462,7 +493,7 @@ class LyricsRenderer {
   }
 
   scrollToLine(index) {
-    if (!this.container || index < 0) return;
+    if (!this.container || index < 0 || this.statusMessage) return;
     const line = this.container.children[index];
     if (line) {
       line.scrollIntoView({ behavior: 'smooth', block: 'center' });

@@ -36,12 +36,51 @@ export class PlayerObserver {
   }
 
   bindVideoEvents() {
+    this.lastVideoTime = 0;
+    this.lastSystemTime = 0;
+    this.isPaused = true;
+
     this.videoElement.addEventListener('timeupdate', () => {
-      this.trigger('onTimeUpdate', this.videoElement.currentTime);
+      this.lastVideoTime = this.videoElement.currentTime;
+      this.lastSystemTime = performance.now();
+      // Regular fallback update
+      this.trigger('onTimeUpdate', this.lastVideoTime);
     });
     
-    this.videoElement.addEventListener('play', () => this.trigger('onStateChange', 'playing'));
-    this.videoElement.addEventListener('pause', () => this.trigger('onStateChange', 'paused'));
+    this.videoElement.addEventListener('play', () => {
+        this.isPaused = false;
+        this.lastSystemTime = performance.now();
+        this.trigger('onStateChange', 'playing');
+    });
+
+    this.videoElement.addEventListener('pause', () => {
+        this.isPaused = true;
+        this.trigger('onStateChange', 'paused');
+    });
+
+    this.videoElement.addEventListener('seeking', () => {
+        this.lastVideoTime = this.videoElement.currentTime;
+        this.lastSystemTime = performance.now();
+    });
+
+    this.startInterpolationLoop();
+  }
+
+  startInterpolationLoop() {
+    const loop = () => {
+      if (!this.isPaused && this.videoElement) {
+        const now = performance.now();
+        const delta = (now - this.lastSystemTime) / 1000;
+        const interpolatedTime = this.lastVideoTime + delta;
+        
+        // Safety check: don't drift too far from actual video duration
+        if (interpolatedTime <= this.videoElement.duration) {
+            this.trigger('onTimeUpdate', interpolatedTime);
+        }
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
   }
 
   observeMetadata() {

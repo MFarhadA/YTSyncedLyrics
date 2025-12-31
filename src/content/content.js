@@ -188,6 +188,28 @@ class LyricsFetcher {
 
     return lyrics;
   }
+
+  hasJapanese(text) {
+    // Regex for Hiragana, Katakana, and Kanji
+    return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text);
+  }
+
+  async fetchRomaji(lines) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: 'FETCH_ROMAJI',
+        payload: { lines: lines }
+      }, (response) => {
+        if (response && response.success && response.data) {
+          console.log('[YTSyncedLyrics] Romaji lines received:', response.data.length);
+          resolve(response.data);
+        } else {
+          console.warn('[YTSyncedLyrics] Romaji fetch failed:', response?.error);
+          resolve(null);
+        }
+      });
+    });
+  }
 }
 
 // --- LyricsRenderer.js ---
@@ -388,8 +410,14 @@ class LyricsRenderer {
 
   setLyrics(lyrics) {
     this.lyrics = lyrics;
+    this.romajiLyrics = null; // Clear old romaji
     this.statusMessage = '';
     this.currentIndex = -1;
+    this.render();
+  }
+
+  setRomaji(romaji) {
+    this.romajiLyrics = romaji;
     this.render();
   }
 
@@ -444,14 +472,35 @@ class LyricsRenderer {
       lineEl.style.setProperty('--line-duration', `${duration}s`);
       
       // Split into words for jump animation
+      // Container for word spans
+      const primaryEl = document.createElement('div');
+      primaryEl.className = 'sym-primary-line';
+      
       const words = line.text.split(' ');
       words.forEach((word, wIndex) => {
           const span = document.createElement('span');
           span.className = 'sym-word';
           span.textContent = word + '\u00A0'; // force space (nbsp)
           span.style.setProperty('--word-index', wIndex);
-          lineEl.appendChild(span);
+          primaryEl.appendChild(span);
       });
+      lineEl.appendChild(primaryEl);
+
+      // Add Romaji if available
+      if (this.romajiLyrics && this.romajiLyrics[index]) {
+          const romajiEl = document.createElement('div');
+          romajiEl.className = 'sym-romaji-line';
+          
+          const rWords = this.romajiLyrics[index].split(' ');
+          rWords.forEach((word, wIndex) => {
+              const span = document.createElement('span');
+              span.className = 'sym-word sym-romaji-word';
+              span.textContent = word + '\u00A0';
+              span.style.setProperty('--word-index', wIndex);
+              romajiEl.appendChild(span);
+          });
+          lineEl.appendChild(romajiEl);
+      }
       
       // Click to seek (optional implementation)
       lineEl.onclick = () => {
@@ -579,13 +628,25 @@ observer.on('onSongChange', async (meta) => {
     renderer.setLyrics(parsed);
     console.log('[YTSyncedLyrics] Lyrics set:', parsed.length, 'lines');
     
-    // Immediate sync
-    const currentTime = observer.getCurrentTime();
-    if (currentTime > 0) {
-        const adjTime = currentTime + (globalOffset / 1000);
-        renderer.updateTime(adjTime);
+    // Romaji Support: Check for Japanese text
+    const hasJP = parsed.some(line => fetcher.hasJapanese(line.text));
+    console.log('[YTSyncedLyrics] Has Japanese:', hasJP);
+    if (hasJP) {
+        console.log('[YTSyncedLyrics] Japanese detected, fetching Romaji for', parsed.length, 'lines...');
+        const linesOnly = parsed.map(l => l.text);
+        fetcher.fetchRomaji(linesOnly).then(romaji => {
+            if (romaji) {
+                console.log('[YTSyncedLyrics] Romaji fetch success, lines:', romaji.length, '(Lyrics lines:', parsed.length, ')');
+                // If counts don't match, Google merged lines.
+                // We should still set it, but the user noticed them being merged.
+                renderer.setRomaji(romaji);
+            } else {
+                console.warn('[YTSyncedLyrics] Romaji fetch returned null or empty');
+            }
+        }).catch(err => {
+            console.error('[YTSyncedLyrics] Romaji fetch error:', err);
+        });
     }
-    
   } else if (lyricsData && lyricsData.plain) {
     // For plain lyrics, we can just pass them as one large text block via special handling or just text lines
     // simpler to just call setStatus for now or adapt setLyrics

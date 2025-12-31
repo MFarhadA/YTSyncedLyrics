@@ -67,4 +67,25 @@ export class LyricsFetcher {
 
     return lyrics;
   }
+
+  hasJapanese(text) {
+    // Regex for Hiragana, Katakana, and Kanji
+    return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text);
+  }
+
+  async fetchRomaji(lines) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: 'FETCH_ROMAJI',
+        payload: { lines: lines }
+      }, (response) => {
+        if (response && response.success && response.data) {
+          resolve(response.data);
+        } else {
+          console.warn('[YTSyncedLyrics] Romaji fetch failed in fetchRomaji:', response?.error);
+          resolve(null);
+        }
+      });
+    });
+  }
 }

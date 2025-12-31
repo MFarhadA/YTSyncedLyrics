@@ -55,41 +55,60 @@
   transform-origin: center center;
 }
 
+/* Active Line - Parent container */
 .sym-lyrics-line.active {
   font-size: 34px;
-  /* Slightly larger */
   font-weight: 700;
-
-  /* Gradient for wipe effect: White | InactiveColor */
-  background: linear-gradient(to right, #fff 50%, rgba(255, 255, 255, 0.5) 50%);
-  background-size: 200% 100%;
-  background-position: 100% 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  /* Required for clip */
+  /* Remove global wipe effect from parent */
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: initial;
+  color: rgba(255, 255, 255, 0.5);
+  /* Start inactive color, children will override */
 
   opacity: 1;
   transform: scale(1.1);
-
-  /* Animate background position from 100% (Gray) to 0% (White) */
-  /* "Fast" wipe effect (0.8s) instead of full line duration */
-  animation: wipe 0.8s cubic-bezier(0.2, 1, 0.3, 1) forwards;
-}
-
-@keyframes wipe {
-  0% {
-    background-position: 100% 0;
-  }
-
-  100% {
-    background-position: 0% 0;
-  }
 }
 
 /* Hover effect for inactive lines */
 .sym-lyrics-line:hover {
   color: rgba(255, 255, 255, 0.8);
   opacity: 0.9;
+}
+
+/* Word animation */
+.sym-word {
+  display: inline-block;
+  transition: transform 0.2s;
+  color: rgba(255, 255, 255, 0.5);
+  /* Inherit gray initially */
+}
+
+/* Staggered Highlight + Jump */
+.sym-lyrics-line.active .sym-word {
+  /* Simple jump, slightly slower as requested */
+  animation: highlight-jump 0.6s ease-out forwards;
+  /* Stagger based on index - 0.12s from previous request */
+  animation-delay: calc(0.12s * var(--word-index));
+}
+
+@keyframes highlight-jump {
+  0% {
+    transform: translateY(0);
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  50% {
+    transform: translateY(-3px);
+    /* Single clean jump */
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+  }
+
+  100% {
+    transform: translateY(0);
+    color: #fff;
+    text-shadow: none;
+  }
 }

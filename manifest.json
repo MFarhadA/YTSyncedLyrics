@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "SyncYTMusic",
+    "name": "YTSyncedLyrics",
     "version": "1.0.0",
     "description": "Synced lyrics for YouTube Music using LRCLib",
     "permissions": [

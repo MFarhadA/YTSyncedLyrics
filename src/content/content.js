@@ -32,7 +32,7 @@ class PlayerObserver {
         clearInterval(checkVideo);
         this.videoElement = video;
         this.bindVideoEvents();
-        console.log('[SyncYTMusic] Video element attached');
+        console.log('[YTSyncedLyrics] Video element attached');
         // Re-check metadata now that we have the video element (for duration)
         this.updateMetadata();
       }
@@ -48,7 +48,7 @@ class PlayerObserver {
        // If duration changes (e.g. loads), and we have metadata, we might need to re-trigger song change or just update currentMeta
        if (this.currentMeta.title && (this.currentMeta.duration === 0 || this.currentMeta.duration !== this.videoElement.duration)) {
          this.currentMeta.duration = this.videoElement.duration;
-         console.log('[SyncYTMusic] Duration updated:', this.currentMeta.duration);
+         console.log('[YTSyncedLyrics] Duration updated:', this.currentMeta.duration);
          // Optionally re-trigger song change if it was invalid before
          this.trigger('onSongChange', this.currentMeta);
        }
@@ -100,7 +100,7 @@ class PlayerObserver {
           album: meta.album || '', // Album might be empty sometimes
           duration: newDuration
         };
-        console.log('[SyncYTMusic] Song detected/updated:', this.currentMeta);
+        console.log('[YTSyncedLyrics] Song detected/updated:', this.currentMeta);
         this.trigger('onSongChange', this.currentMeta);
       }
     } catch (e) {
@@ -126,7 +126,7 @@ class PlayerObserver {
 class LyricsFetcher {
   async fetchLyrics(title, artist, album, duration) {
     if (!title || !artist || !duration || duration <= 0) {
-      console.warn('[SyncYTMusic] Invalid params for fetchLyrics:', { title, artist, album, duration });
+      console.warn('[YTSyncedLyrics] Invalid params for fetchLyrics:', { title, artist, album, duration });
       return null;
     }
 
@@ -137,13 +137,13 @@ class LyricsFetcher {
         payload: { title, artist, album, duration }
       }, (response) => {
         if (chrome.runtime.lastError) {
-          console.error('[SyncYTMusic] Runtime error:', chrome.runtime.lastError);
+          console.error('[YTSyncedLyrics] Runtime error:', chrome.runtime.lastError);
           resolve(null);
           return;
         }
 
         if (response && response.success) {
-          console.log('[SyncYTMusic] Background fetch success');
+          console.log('[YTSyncedLyrics] Background fetch success');
           // normalize data structure
           const data = response.data;
           if (!data) {
@@ -155,7 +155,7 @@ class LyricsFetcher {
             });
           }
         } else {
-          console.warn('[SyncYTMusic] Background fetch failed or empty:', response?.error);
+          console.warn('[YTSyncedLyrics] Background fetch failed or empty:', response?.error);
           resolve(null);
         }
       });
@@ -228,7 +228,7 @@ class LyricsRenderer {
             }
         } else {
              if (this.isAttached) {
-                 console.log('[SyncYTMusic] Lyrics tab hidden/closed');
+                 console.log('[YTSyncedLyrics] Lyrics tab hidden/closed');
              }
              this.isAttached = false;
              this.container = null; // References lost if tab switched usually
@@ -417,7 +417,7 @@ class LyricsRenderer {
       words.forEach((word, wIndex) => {
           const span = document.createElement('span');
           span.className = 'sym-word';
-          span.textContent = word + ' '; // restore space
+          span.textContent = word + '\u00A0'; // force space (nbsp)
           span.style.setProperty('--word-index', wIndex);
           lineEl.appendChild(span);
       });
@@ -480,7 +480,7 @@ class LyricsRenderer {
 
 // --- Main Index ---
 
-console.log('[SyncYTMusic] Content script initializing...');
+console.log('[YTSyncedLyrics] Content script initializing...');
 
 const observer = new PlayerObserver();
 const fetcher = new LyricsFetcher();
@@ -514,7 +514,7 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 observer.on('onSongChange', async (meta) => {
-  console.log('[SyncYTMusic] Song changed:', meta);
+  console.log('[YTSyncedLyrics] Song changed:', meta);
   
   if (!isEnabled) return; // Still fetch? Maybe no, to save bandwidth. But if they toggle on, we want it.
   // For now, let's allow fetching even if disabled so it's ready when enabled.
@@ -528,7 +528,7 @@ observer.on('onSongChange', async (meta) => {
   currentSongDuration = meta.duration;
 
   if (currentSongDuration === 0) {
-      console.log('[SyncYTMusic] Waiting for duration...');
+      console.log('[YTSyncedLyrics] Waiting for duration...');
       renderer.setStatus('Waiting for duration...');
       return; 
   }
@@ -546,7 +546,7 @@ observer.on('onSongChange', async (meta) => {
   if (lyricsData && lyricsData.synced) {
     const parsed = fetcher.parseLrc(lyricsData.synced);
     renderer.setLyrics(parsed);
-    console.log('[SyncYTMusic] Lyrics set:', parsed.length, 'lines');
+    console.log('[YTSyncedLyrics] Lyrics set:', parsed.length, 'lines');
     
     // Immediate sync
     const currentTime = observer.getCurrentTime();
@@ -574,5 +574,5 @@ observer.on('onTimeUpdate', (time) => {
 });
 
 observer.on('onStateChange', (state) => {
-  console.log('[SyncYTMusic] Player state:', state);
+  console.log('[YTSyncedLyrics] Player state:', state);
 });

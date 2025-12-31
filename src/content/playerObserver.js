@@ -30,7 +30,7 @@ export class PlayerObserver {
         clearInterval(checkVideo);
         this.videoElement = video;
         this.bindVideoEvents();
-        console.log('[SyncYTMusic] Video element attached');
+        console.log('[YTSyncedLyrics] Video element attached');
       }
     }, 1000);
   }
@@ -81,7 +81,7 @@ export class PlayerObserver {
           album: meta.album || '', // Album might be empty sometimes
           duration: this.videoElement ? this.videoElement.duration : 0
         };
-        console.log('[SyncYTMusic] Song detected:', this.currentMeta);
+        console.log('[YTSyncedLyrics] Song detected:', this.currentMeta);
         this.trigger('onSongChange', this.currentMeta);
       }
     } catch (e) {

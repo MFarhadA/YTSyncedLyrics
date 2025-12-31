@@ -7,13 +7,13 @@ export class LyricsFetcher {
         payload: { title, artist, album, duration }
       }, (response) => {
         if (chrome.runtime.lastError) {
-          console.error('[SyncYTMusic] Runtime error:', chrome.runtime.lastError);
+          console.error('[YTSyncedLyrics] Runtime error:', chrome.runtime.lastError);
           resolve(null);
           return;
         }
 
         if (response && response.success) {
-          console.log('[SyncYTMusic] Background fetch success');
+          console.log('[YTSyncedLyrics] Background fetch success');
           // normalize data structure
           const data = response.data;
           if (!data) {
@@ -25,7 +25,7 @@ export class LyricsFetcher {
             });
           }
         } else {
-          console.warn('[SyncYTMusic] Background fetch failed or empty:', response?.error);
+          console.warn('[YTSyncedLyrics] Background fetch failed or empty:', response?.error);
           resolve(null);
         }
       });

@@ -71,8 +71,12 @@ class PlayerObserver {
 
     this.updateMetadata(); // Initial check
 
+    let debounceTimeout = null;
     this.observer = new MutationObserver(() => {
-      this.updateMetadata();
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+          this.updateMetadata();
+      }, 200); // 200ms settlement
     });
 
     this.observer.observe(targetNode, {
@@ -84,28 +88,57 @@ class PlayerObserver {
 
   updateMetadata() {
     try {
-      if (!navigator.mediaSession || !navigator.mediaSession.metadata) return;
+      let title = '';
+      let artist = '';
+      let album = '';
       
-      const meta = navigator.mediaSession.metadata;
+      // 1. Try MediaSession (often accurate but can be delayed)
+      if (navigator.mediaSession && navigator.mediaSession.metadata) {
+        const meta = navigator.mediaSession.metadata;
+        title = meta.title;
+        artist = meta.artist;
+        album = meta.album || '';
+      }
+      
+      // 2. Fallback/Augment with DOM scraping (very fast, but artist/album can be messy)
+      const playerBar = document.querySelector('ytmusic-player-bar');
+      if (playerBar) {
+          const titleEl = playerBar.querySelector('yt-formatted-string.title');
+          const bylineEl = playerBar.querySelector('yt-formatted-string.byline');
+          
+          if (titleEl && (!title || title === '')) {
+              title = titleEl.textContent;
+          }
+          if (bylineEl && (!artist || artist === '')) {
+              // Byline usually is "Artist • Album • Year"
+              const text = bylineEl.textContent;
+              const parts = text.split('•').map(p => p.trim());
+              artist = parts[0];
+              if (parts.length > 1 && !album) album = parts[1];
+          }
+      }
+
+      if (!title) return; // Still nothing, maybe player is truly empty
+
       const newDuration = this.videoElement ? this.videoElement.duration : 0;
       
       // Check if song changed OR if we just got a valid duration for the current song
-      if (meta.title !== this.currentMeta.title || 
-          meta.artist !== this.currentMeta.artist ||
+      if (title !== this.currentMeta.title || 
+          artist !== this.currentMeta.artist ||
           (this.currentMeta.duration === 0 && newDuration > 0)) {
             
         this.currentMeta = {
-          title: meta.title,
-          artist: meta.artist,
-          album: meta.album || '', // Album might be empty sometimes
+          title: title,
+          artist: artist,
+          album: album,
           duration: newDuration
         };
-        console.log('[YTSyncedLyrics] Song detected/updated:', this.currentMeta);
+        const songId = `${title} - ${artist}`;
+        console.log(`[YTSyncedLyrics] Song detected/updated: ${songId}`, this.currentMeta);
         this.trigger('onSongChange', this.currentMeta);
       }
     } catch (e) {
-      // Fallback to DOM scraping if MediaSession fails (rare on YTM)
-      console.warn('MediaSession read failed, falling back logic pending...', e);
+      console.warn('[YTSyncedLyrics] Metadata update failed:', e);
     }
   }
 
@@ -218,7 +251,7 @@ class LyricsRenderer {
   constructor() {
     this.container = null;
     this.lyrics = []; // Array of { time, text }
-    this.statusMessage = ''; // 'Waiting...', 'Fetching...', etc.
+    this.statusMessage = 'Waiting for song...'; 
     this.currentIndex = -1;
     this.observer = null;
     this.isAttached = false;
@@ -258,7 +291,7 @@ class LyricsRenderer {
         }
     };
 
-    setInterval(checkForContainer, 1000);
+    setInterval(checkForContainer, 500);
   }
 
   attachToContainer(shelf) {
@@ -304,9 +337,21 @@ class LyricsRenderer {
     let insertReference = description ? description.nextSibling : null;
     
     // Check duplication
-    if (shelf.querySelector('.sym-lyrics-container') || (description && description.parentNode.querySelector('.sym-lyrics-container'))) {
-        this.container = shelf.querySelector('.sym-lyrics-container') || description.parentNode.querySelector('.sym-lyrics-container');
+    const existingContainer = shelf.querySelector('.sym-lyrics-container') || (description && description.parentNode.querySelector('.sym-lyrics-container'));
+    const existingSourceGroup = shelf.querySelector('.sym-source-group') || (description && description.parentNode.querySelector('.sym-source-group'));
+    
+    if (existingContainer) {
+        this.container = existingContainer;
+        this.sourceGroup = existingSourceGroup;
         this.isAttached = true;
+        
+        // Re-find children if they were lost from properties
+        if (this.sourceGroup) {
+            this.ytBtn = this.sourceGroup.querySelector('.sym-source-btn:nth-child(1)');
+            this.lrcBtn = this.sourceGroup.querySelector('.sym-source-btn:nth-child(2)');
+        }
+        
+        this.updateViewVisibility();
         return;
     }
 
@@ -438,8 +483,10 @@ class LyricsRenderer {
             this.container.innerHTML = `
                 <div class="sym-loading-container">
                     <div class="sym-loading-line"></div>
-                    <div class="sym-loading-line" style="width: 180px"></div>
-                    <div class="sym-loading-line" style="width: 220px"></div>
+                    <div class="sym-loading-line" style="width: 80%"></div>
+                    <div class="sym-loading-line" style="width: 60%"></div>
+                    <div class="sym-loading-line" style="width: 70%"></div>
+                    <div class="sym-loading-line" style="width: 50%"></div>
                     <div class="sym-loading-text">${this.statusMessage}</div>
                 </div>
             `;
@@ -450,7 +497,11 @@ class LyricsRenderer {
     }
 
     if (!this.lyrics || this.lyrics.length === 0) {
-      this.container.innerHTML = '<div class="sym-lyrics-line">No synced lyrics found</div>';
+      if (this.statusMessage === 'Waiting for song...') {
+          this.container.innerHTML = '<div class="sym-lyrics-line">Waiting for song metadata...</div>';
+      } else {
+          this.container.innerHTML = '<div class="sym-lyrics-line">No synced lyrics found</div>';
+      }
       return;
     }
 
@@ -573,6 +624,7 @@ let currentSongArtist = '';
 let currentSongDuration = 0;
 let globalOffset = 0;
 let isEnabled = true;
+let currentFetchId = 0; 
 
 // Load settings
 chrome.storage.sync.get(['enabled', 'offset'], (items) => {
@@ -595,23 +647,16 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 observer.on('onSongChange', async (meta) => {
-  console.log('[YTSyncedLyrics] Song changed:', meta);
+  const fetchId = ++currentFetchId;
+  console.log(`[YTSyncedLyrics] Song changed (FetchId: ${fetchId}):`, meta);
   
-  if (!isEnabled) return; // Still fetch? Maybe no, to save bandwidth. But if they toggle on, we want it.
-  // For now, let's allow fetching even if disabled so it's ready when enabled.
+  if (!isEnabled) return;
   
-  // Avoid refetching if same song AND we already had a valid duration
-  // If we had no duration (0) and now we do, we SHOULD refetch.
-  if (currentSongTitle === meta.title && currentSongArtist === meta.artist && currentSongDuration > 0) return;
-  
+  // Update state immediately
   currentSongTitle = meta.title;
   currentSongArtist = meta.artist;
   currentSongDuration = meta.duration;
 
-  // Optimistic Fetch: Don't wait for duration if we have title/artist
-  // But we still track duration so we can re-sync if it changes significantly
-
-  renderer.setLyrics([]); // Clear old
   renderer.setStatus('Fetching lyrics...');
 
   const lyricsData = await fetcher.fetchLyrics(
@@ -621,37 +666,43 @@ observer.on('onSongChange', async (meta) => {
     meta.duration
   );
 
+  // If a newer fetch has started, discard this result
+  if (fetchId !== currentFetchId) {
+    console.log(`[YTSyncedLyrics] Fetch ${fetchId} discarded, newer fetch ${currentFetchId} in progress`);
+    return;
+  }
+
   if (lyricsData && lyricsData.synced) {
     const parsed = fetcher.parseLrc(lyricsData.synced);
-    renderer.setLyrics(parsed);
-    console.log('[YTSyncedLyrics] Lyrics set:', parsed.length, 'lines');
     
-    // Romaji Support: Check for Japanese text
-    // Romanization Support: Check for non-latin scripts
-    const needsRomaji = parsed.some(line => fetcher.needsRomanization(line.text));
-    console.log('[YTSyncedLyrics] Needs Romanization:', needsRomaji);
-    if (needsRomaji) {
-        console.log('[YTSyncedLyrics] Non-latin script detected, fetching Romanization for', parsed.length, 'lines...');
-        const linesOnly = parsed.map(l => l.text);
-        fetcher.fetchRomaji(linesOnly).then(romaji => {
-            if (romaji) {
-                console.log('[YTSyncedLyrics] Romaji fetch success, lines:', romaji.length, '(Lyrics lines:', parsed.length, ')');
-                // If counts don't match, Google merged lines.
-                // We should still set it, but the user noticed them being merged.
-                renderer.setRomaji(romaji);
-            } else {
-                console.warn('[YTSyncedLyrics] Romaji fetch returned null or empty');
-            }
-        }).catch(err => {
-            console.error('[YTSyncedLyrics] Romaji fetch error:', err);
-        });
-    }
+    // Add a tiny artificial delay to ensure the loading state is visible
+    // and provide a smooth transition even if cached.
+    setTimeout(() => {
+        // Late check
+        if (fetchId !== currentFetchId) return;
+
+        renderer.setLyrics(parsed);
+        console.log('[YTSyncedLyrics] Lyrics set:', parsed.length, 'lines');
+        
+        // Romanization Support: Check for non-latin scripts
+        const needsRomaji = parsed.some(line => fetcher.needsRomanization(line.text));
+        if (needsRomaji) {
+            console.log('[YTSyncedLyrics] Non-latin script detected, fetching Romanization...');
+            const linesOnly = parsed.map(l => l.text);
+            fetcher.fetchRomaji(linesOnly).then(romaji => {
+                if (fetchId !== currentFetchId) return;
+                if (romaji) renderer.setRomaji(romaji);
+            });
+        }
+    }, 200); // 200ms "breath" transition
   } else if (lyricsData && lyricsData.plain) {
-    // For plain lyrics, we can just pass them as one large text block via special handling or just text lines
-    // simpler to just call setStatus for now or adapt setLyrics
-    renderer.setStatus(lyricsData.plain); // Hacky reuse of status for plain text
+    setTimeout(() => {
+      if (fetchId === currentFetchId) renderer.setStatus(lyricsData.plain);
+    }, 200);
   } else {
-    renderer.setStatus('No lyrics found');
+    setTimeout(() => {
+      if (fetchId === currentFetchId) renderer.setStatus('No lyrics found');
+    }, 200);
   }
 });
 

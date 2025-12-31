@@ -125,8 +125,8 @@ class PlayerObserver {
 // --- LyricsFetcher.js ---
 class LyricsFetcher {
   async fetchLyrics(title, artist, album, duration) {
-    if (!title || !artist || !duration || duration <= 0) {
-      console.warn('[YTSyncedLyrics] Invalid params for fetchLyrics:', { title, artist, album, duration });
+    if (!title || !artist) {
+      console.warn('[YTSyncedLyrics] Missing required params for fetchLyrics:', { title, artist });
       return null;
     }
 
@@ -607,11 +607,8 @@ observer.on('onSongChange', async (meta) => {
   currentSongArtist = meta.artist;
   currentSongDuration = meta.duration;
 
-  if (currentSongDuration === 0) {
-      console.log('[YTSyncedLyrics] Waiting for duration...');
-      renderer.setStatus('Waiting for duration...');
-      return; 
-  }
+  // Optimistic Fetch: Don't wait for duration if we have title/artist
+  // But we still track duration so we can re-sync if it changes significantly
 
   renderer.setLyrics([]); // Clear old
   renderer.setStatus('Fetching lyrics...');

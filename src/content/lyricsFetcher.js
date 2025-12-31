@@ -1,6 +1,9 @@
 export class LyricsFetcher {
   async fetchLyrics(title, artist, album, duration) {
-    // Delegate to background script to avoid CORS/CSP issues
+    if (!title || !artist) {
+      console.warn('[YTSyncedLyrics] Missing required params for fetchLyrics:', { title, artist });
+      return null;
+    }
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({
         type: 'FETCH_LYRICS',

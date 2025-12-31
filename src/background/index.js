@@ -17,7 +17,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+const CACHE_LIMIT = 100;
+const CACHE_KEY_PREFIX = 'lyric_cache_';
+
 async function handleFetchLyrics({ title, artist, album, duration }) {
+  const cacheKey = `${CACHE_KEY_PREFIX}${artist.toLowerCase()}_${title.toLowerCase()}`.replace(/\s+/g, '_');
+  
+  // 1. Try Cache
+  const cached = await getFromCache(cacheKey);
+  if (cached) {
+    console.log('[SyncYTMusic-BG] Cache Hit:', title);
+    return cached;
+  }
+
   const baseUrl = 'https://lrclib.net/api';
   const params = new URLSearchParams({
     track_name: title,
@@ -26,18 +38,53 @@ async function handleFetchLyrics({ title, artist, album, duration }) {
   });
   if (album) params.append('album_name', album);
 
-  console.log('[SyncYTMusic-BG] Fetching:', params.toString());
+  console.log('[SyncYTMusic-BG] Cache Miss. Fetching:', params.toString());
 
   const response = await fetch(`${baseUrl}/get?${params.toString()}`);
   
   if (!response.ok) {
-    if (response.status === 404) {
-      return null; // Not found is not an error state for us
-    }
+    if (response.status === 404) return null;
     throw new Error(`API Error: ${response.status}`);
   }
 
-  return await response.json();
+  const data = await response.json();
+  
+  // 2. Save to Cache
+  if (data && data.syncedLyrics) {
+    saveToCache(cacheKey, data);
+  }
+
+  return data;
+}
+
+async function getFromCache(key) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve(result[key] || null);
+    });
+  });
+}
+
+async function saveToCache(key, data) {
+  // Simple LRU: Keep track of order in a separate key
+  chrome.storage.local.get(['cache_order'], (result) => {
+    let order = result.cache_order || [];
+    
+    // Remove if already exists (move to front)
+    order = order.filter(k => k !== key);
+    order.unshift(key);
+
+    const updates = { [key]: data };
+
+    // Evict if limit reached
+    if (order.length > CACHE_LIMIT) {
+      const punc = order.pop();
+      chrome.storage.local.remove(punc);
+    }
+
+    updates.cache_order = order;
+    chrome.storage.local.set(updates);
+  });
 }
 
 async function handleFetchRomaji({ lines }) {
@@ -47,7 +94,7 @@ async function handleFetchRomaji({ lines }) {
         // Fetch each line individually to ensure Google doesn't merge them
         // We use Promise.all for speed, but batch them to be polite to the API
         const results = [];
-        const BATCH_SIZE = 10;
+        const BATCH_SIZE = 15;
         
         for (let i = 0; i < lines.length; i += BATCH_SIZE) {
             const batch = lines.slice(i, i + BATCH_SIZE);
@@ -66,7 +113,7 @@ async function handleFetchRomaji({ lines }) {
             
             // Tiny delay between batches to avoid 429
             if (i + BATCH_SIZE < lines.length) {
-                await new Promise(r => setTimeout(r, 100));
+                await new Promise(r => setTimeout(r, 50));
             }
         }
         

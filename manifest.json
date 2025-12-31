@@ -1,0 +1,32 @@
+{
+    "manifest_version": 3,
+    "name": "SyncYTMusic",
+    "version": "1.0.0",
+    "description": "Synced lyrics for YouTube Music using LRCLib",
+    "permissions": [
+        "storage"
+    ],
+    "host_permissions": [
+        "https://lrclib.net/*",
+        "https://music.youtube.com/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "https://music.youtube.com/*"
+            ],
+            "js": [
+                "src/content/content.js"
+            ],
+            "css": [
+                "src/content/ui/LyricsOverlay.css"
+            ]
+        }
+    ],
+    "background": {
+        "service_worker": "src/background/index.js"
+    },
+    "action": {
+        "default_popup": "src/popup/index.html"
+    }
+}

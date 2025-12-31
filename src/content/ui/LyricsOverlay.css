@@ -1,0 +1,95 @@
+/* Lyrics Overlay Styles */
+.sym-switch-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: Roboto, Noto Naskh Arabic UI, Arial, sans-serif;
+  font-size: 14px;
+  margin-top: 20px;
+  transition: background 0.2s;
+}
+
+.sym-switch-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sym-lyrics-container {
+  /* Previously absolute/fixed, now relative to parent */
+  position: relative;
+  width: 100%;
+  /* Height needs to fit parent or be auto. 
+     YTM lyrics container is usually scrollable. 
+     We can make our container fill it. */
+  min-height: 400px;
+  /* arbitrary min height */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  /* Start from top */
+  padding-top: 50vh;
+  /* Allow first line to be centered */
+  padding-bottom: 50vh;
+  /* Remove dark background as we want to blend in, or keep it if desired?
+     YTM lyrics tab is already dark. */
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.sym-lyrics-line {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.5);
+  /* More transparent inactive */
+  margin: 12px 0;
+  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+    color 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  text-align: center;
+  cursor: pointer;
+  max-width: 80%;
+  line-height: 1.4;
+  opacity: 0.6;
+  transform-origin: center center;
+}
+
+.sym-lyrics-line.active {
+  font-size: 34px;
+  /* Slightly larger */
+  font-weight: 700;
+
+  /* Gradient for wipe effect: White | InactiveColor */
+  background: linear-gradient(to right, #fff 50%, rgba(255, 255, 255, 0.5) 50%);
+  background-size: 200% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* Required for clip */
+
+  opacity: 1;
+  transform: scale(1.1);
+
+  /* Animate background position from 100% (Gray) to 0% (White) */
+  /* "Fast" wipe effect (0.8s) instead of full line duration */
+  animation: wipe 0.8s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+}
+
+@keyframes wipe {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+/* Hover effect for inactive lines */
+.sym-lyrics-line:hover {
+  color: rgba(255, 255, 255, 0.8);
+  opacity: 0.9;
+}

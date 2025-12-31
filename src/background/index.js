@@ -100,7 +100,7 @@ async function handleFetchRomaji({ lines }) {
             const batch = lines.slice(i, i + BATCH_SIZE);
             const batchPromises = batch.map(async (line) => {
                 if (!line.trim()) return "";
-                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=en&dt=rm&q=${encodeURIComponent(line)}`;
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=rm&q=${encodeURIComponent(line)}`;
                 const response = await fetch(url);
                 if (!response.ok) return "";
                 const data = await response.json();

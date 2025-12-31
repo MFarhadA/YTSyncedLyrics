@@ -17,12 +17,10 @@
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 
-  /* Auto-hide logic */
-  transform: translateY(-90%);
-  /* Hide most of it, leave a tiny sliver or just hide fully */
+  /* Always visible at the top */
+  transform: translateY(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-  opacity: 0.1;
-  /* Even more subtle when hidden */
+  opacity: 1;
 }
 
 /* Dedicated trigger area using pseudo-element */
@@ -87,8 +85,8 @@
   /* Left align items */
   justify-content: flex-start;
   /* Start from top */
-  padding-top: 50vh;
-  /* Allow first line to be centered */
+  padding-top: 24px;
+  /* Start near top */
   padding-bottom: 50vh;
   /* Remove dark background as we want to blend in, or keep it if desired?
      YTM lyrics tab is already dark. */
@@ -103,7 +101,7 @@
   font-size: 24px;
   color: rgba(255, 255, 255, 0.5);
   /* More transparent inactive */
-  margin: 12px 0;
+  margin: 24px 0;
   transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1),
     color 0.6s cubic-bezier(0.25, 1, 0.5, 1),
     opacity 0.6s cubic-bezier(0.25, 1, 0.5, 1);

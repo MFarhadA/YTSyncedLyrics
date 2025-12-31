@@ -189,9 +189,10 @@ class LyricsFetcher {
     return lyrics;
   }
 
-  hasJapanese(text) {
-    // Regex for Hiragana, Katakana, and Kanji
-    return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text);
+  needsRomanization(text) {
+    // Check for scripts that typically require romanization:
+    // CJK (Chinese, Japanese, Korean), Cyrillic, Greek, Arabic, Hebrew, Thai, etc.
+    return /[\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0900-\u097F\u0E00-\u0E7F\u1100-\u11FF\u3040-\u30FF\u3130-\u318F\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/.test(text);
   }
 
   async fetchRomaji(lines) {
@@ -626,10 +627,11 @@ observer.on('onSongChange', async (meta) => {
     console.log('[YTSyncedLyrics] Lyrics set:', parsed.length, 'lines');
     
     // Romaji Support: Check for Japanese text
-    const hasJP = parsed.some(line => fetcher.hasJapanese(line.text));
-    console.log('[YTSyncedLyrics] Has Japanese:', hasJP);
-    if (hasJP) {
-        console.log('[YTSyncedLyrics] Japanese detected, fetching Romaji for', parsed.length, 'lines...');
+    // Romanization Support: Check for non-latin scripts
+    const needsRomaji = parsed.some(line => fetcher.needsRomanization(line.text));
+    console.log('[YTSyncedLyrics] Needs Romanization:', needsRomaji);
+    if (needsRomaji) {
+        console.log('[YTSyncedLyrics] Non-latin script detected, fetching Romanization for', parsed.length, 'lines...');
         const linesOnly = parsed.map(l => l.text);
         fetcher.fetchRomaji(linesOnly).then(romaji => {
             if (romaji) {
